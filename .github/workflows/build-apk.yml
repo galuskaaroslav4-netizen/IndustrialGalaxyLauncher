@@ -22,34 +22,47 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Find and build Android project
+      - name: Find Android project
+        id: find_project
         shell: bash
         run: |
-          echo "Searching for Gradle project..."
+          echo "Searching for Android project..."
 
-          SETTINGS=$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/.gradle/*' | head -n 1)
+          SETTINGS=$(find . -type f \( \
+            -name settings.gradle \
+            -o -name settings.gradle.kts \
+          \) -not -path '*/.gradle/*' | head -n 1)
 
           if [ -z "$SETTINGS" ]; then
-            echo "Gradle project not found!"
-            find . -maxdepth 5 -type f
+            echo "ERROR: settings.gradle was not found."
+            echo "Repository contents:"
+            find . -maxdepth 5 -type f | sort
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS")
-          echo "Found project: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
-          cd "$PROJECT_DIR"
-          gradle assembleDebug
+          echo "Found project in: $PROJECT_DIR"
+          ls -la "$PROJECT_DIR"
+
+      - name: Build Android APK
+        shell: bash
+        run: |
+          cd "${{ steps.find_project.outputs.project_dir }}"
+
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            echo "ERROR: gradlew is missing."
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Industrial-Galaxy-APK
-          path: '**/app/build/outputs/apk/debug/app-debug.apk'
+          path: "**/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
           
